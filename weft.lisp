@@ -26,14 +26,34 @@
 
 ;;; Information Protocol
 
-(defgeneric merge (old new)
-  (:documentation "Merges OLD information with NEW information. 
+(defgeneric unify (old new)
+  (:documentation "Unifies OLD information with NEW information. 
 
-Returns two values MERGED and CONSISTENT-P.
+Returns two values UNIFIED and CONSISTENT-P.
 
-MERGED is the result of a merge and CONSISTENT-P is T if OLD is
-consistent with NEW, otherwise CONSISTENT-P is NIL."))
+UNIFIED is the result of a unify and CONSISTENT-P is T if OLD is
+consistent with NEW, otherwise CONSISTENT-P is NIL.
 
+UNIFY should be a pure function, and should under no circumstances
+modify its arguments."))
+
+
+;; (defgeneric implies-p (a b)
+;;   (:documentation "Returns T if A is at least as informative as
+;;   B. That is, whenver you know B, you also know A. 
+
+;;   For example if a number is between 3 and 6 (A) then it is also
+;;   between 0 and 10 (B), then (implies-p A B) is true."))
+
+(defun implies-p (a b)
+  (multiple-value-bind (unified consistent-p)  (unify a b)
+    (and consistent-p (equalp a unified))))
+
+(defun iff-p (a b)
+  (or (equalp a b)
+      (and (implies-p a b) (implies-p b a))))
+
+;;; Cell Class
 
 (defclass simple-cell ()
   ((name :reader cell-name
@@ -54,7 +74,7 @@ consistent with NEW, otherwise CONSISTENT-P is NIL."))
 (defun alert-propagators (ps)
   (dolist (p ps) (alert-propagator p)))
 
-;; so i think that a MERGE generic function can be written for each
+;; so i think that a UNIFY generic function can be written for each
 ;; pair of types that one might want to store in a cell. ..
 
 ;; what is the best way to handle contradictions? rn i'm signallying
@@ -75,8 +95,8 @@ consistent with NEW, otherwise CONSISTENT-P is NIL."))
                 (setf status 'alert-propagators)
                 increment)
                (t
-                (multiple-value-bind (merged consistent-p) (merge content increment)
-                  (if conistent-p merged
+                (multiple-value-bind (unified consistent-p) (unify content increment)
+                  (if conistent-p unified
                       (progn
                         (setf status 'inconsistency)
                         content)))))))
@@ -126,7 +146,7 @@ consistent with NEW, otherwise CONSISTENT-P is NIL."))
         *nothing*
         (apply fn args))))
 
-(defmethod merge ((old number) (new number))
+(defmethod unify ((old number) (new number))
   (if (= old new)
       (values old t)
       (values nil nil)))
@@ -179,11 +199,33 @@ consistent with NEW, otherwise CONSISTENT-P is NIL."))
 ;; something like
 
 (defstruct supported value support)
-;; and define MERGE for supported types.
+;; and define UNIFY for supported types.
 
-;; TODO add a TMS cell structure and define MERGE for it.  It should
+(defmethod unify ((sup1 supported) (sup2 supported))
+  (let ((val1 (supported-value sup1))
+        (val2 (supported-value sup2)))
+    (multiple-value-bind (unified consistent-p) (unify val1 val2)
+      (if (not consistent-p) (values nil nil)
+          (cond ((equalp val1 unified)
+                 (if (implies-p val2 unified)
+                     (if (more-informative-support-p sup2 sup1)
+                         sup2
+                         sup1)
+                     sup1))
+
+                ((equalp unified val2)
+                 sup2)
+
+                (t
+                 (make-supported :value unified
+                                 :supports (unify-supports sup1 sup2))))))))
+
+(defun unify-supports (sup1 sup2)
+  (union (supported-support sup1) (supported-support sup2) :test #'equalp))
+
+;; TODO add a TMS cell structure and define UNIFY for it.  It should
 ;; implicitly use "supported" types, and for each list of supports,
-;; maintain different vlaues.  It should recursivelyc all MERGE on the
+;; maintain different vlaues.  It should recursivelyc all UNIFY on the
 ;; values.  Radul just has each cell remember just the computations
 ;; actually made -i.e. it doesn't do all permutations of all possible
 ;; worldviews, just those that have actually been asserted.
