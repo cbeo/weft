@@ -7,4 +7,7 @@
   :version "0.0.1"
   :serial t
   :depends-on (#:lparallel)
-  :components ((:file "weft")))
+  :components ((:file "weft")
+               ;(:file "supported")
+               ;(:file "tms")
+               ))
