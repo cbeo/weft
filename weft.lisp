@@ -92,11 +92,10 @@ modify its arguments."))
                 increment)
                (t
                 (multiple-value-bind (unified consistent-p) (unify content increment)
-                  (if conistent-p unified
+                  (if consistent-p unified
                       (progn
                         (setf status 'inconsistency)
                         content)))))))
-
       (sb-ext:atomic-update (slot-value cell 'content)
                             #'updater
                             increment))
@@ -106,7 +105,7 @@ modify its arguments."))
 
 (defmethod new-neighbor ((cell cell) nbr)
   (unless (member nbr (neighbors cell) :test #'eql)
-    (sb-ext:atomic-push nbr (slot-value cell 'neighbors))        ;(push nbr (neighbors cell))
+    (sb-ext:atomic-push nbr (slot-value cell 'neighbors))
     (alert-propagator nbr)))
 
 (defun propagator (neighbors to-do)
@@ -129,6 +128,18 @@ modify its arguments."))
         +nothing+
         (apply fn args))))
 
+(defmethod unify ((old (eql t)) (new (eql nil)))
+  (values nil nil))
+
+(defmethod unify ((old (eql nil)) (new (eql t)))
+  (values nil nil))
+
+(defmethod unify ((old (eql t)) (new (eql t)))
+  (values old t))
+
+(defmethod unify ((old (eql nil)) (new (eql nil)))
+  (values old t))
+
 (defmethod unify ((old number) (new number))
   (if (= old new)
       (values old t)
@@ -144,3 +155,41 @@ modify its arguments."))
 (defun cell (&optional (name (format nil "cell-~a" (incf *cell-id*))))
   (make-instance 'cell :name name))
 
+(defmacro with-cells ((&rest cell-vars) &body body)
+  (let ((cell-bindings (mapcar (lambda (var) (list var (list 'weft::cell)))
+                               cell-vars)))
+    `(let ,cell-bindings
+       ,@body)))
+
+(defun list-rotate (ls)
+  (append (rest ls) (list (first ls))))
+
+(defun list-rotations (ls)
+  (let ((rotations (list ls)))
+    (dotimes (_ (1-  (length ls)) rotations)
+      (push (list-rotate (first rotations))
+            rotations))))
+
+(defmacro commutative-network (operation inverse (&rest inputs) output)
+  (let ((input-rotations (list-rotations inputs)))
+    `(progn
+       (propagate ,operation ,inputs ,output)
+       ,@(loop :for alt-inputs :in input-rotations
+              :collect `(propagate ,inverse ,(cons output (cdr alt-inputs)) ,(car alt-inputs))))))
+
+
+(defun implication (a b)
+  (propagate (lambda (x) (if x x +nothing+)) (a) b)
+  (propagate (lambda (x) (if (not x) x +nothing+)) (b) a))
+
+(defun it-is (a)
+  (inform a t))
+
+(defun it-is-not (a)
+  (inform a nil))
+
+;; what about and, and or, ??? should it-is and it-is-not be macros ?
+;; should there be an overarchign 'logic' macro that uses propnets
+;; under the hood, and interpretes keywords to create the right
+;; structures?
+;; is there a way to wait ona cell to "finish"?
