@@ -8,7 +8,9 @@
            #:new-neighbor
            #:unify
            #:implies-p
-           #:cell))
+           #:cell
+           #:propagate
+           #:with-cells))
 
 (in-package #:weft)
 

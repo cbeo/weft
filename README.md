@@ -1,9 +1,5 @@
 # weft
-### _Your Name <your.name@example.com>_
 
-This is a project to do ... something.
+Experiments with [Propagation Network](https://dspace.mit.edu/handle/1721.1/49525) 
 
-## License
-
-Specify license here
 
